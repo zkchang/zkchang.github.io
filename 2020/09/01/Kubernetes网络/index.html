@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.1.1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/K.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/K.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"yoursite.com","root":"/","scheme":"Pisces","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"always","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":true},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":true},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
+  </script>
+
+  <meta name="description" content="CNI(Conteinre Network Interface)Kubernetes 网络插件-flannelKubernetes 网络插件-calico">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Kubernetes网络">
+<meta property="og:url" content="http://yoursite.com/2020/09/01/Kubernetes%E7%BD%91%E7%BB%9C/index.html">
+<meta property="og:site_name" content="Zkchang Blog">
+<meta property="og:description" content="CNI(Conteinre Network Interface)Kubernetes 网络插件-flannelKubernetes 网络插件-calico">
+<meta property="og:locale">
+<meta property="og:image" content="http://yoursite.com/2020/09/01/Kubernetes%E7%BD%91%E7%BB%9C/flannel%E6%9E%B6%E6%9E%84.png">
+<meta property="og:image" content="http://yoursite.com/2020/09/01/Kubernetes%E7%BD%91%E7%BB%9C/flannelUDP%E6%A8%A1%E5%BC%8F%E5%AE%B9%E5%99%A8%E9%80%9A%E4%BF%A1.png">
+<meta property="og:image" content="http://yoursite.com/2020/09/01/Kubernetes%E7%BD%91%E7%BB%9C/VXLAN%E5%B0%81%E5%8C%85%E6%A0%BC%E5%BC%8F.png">
+<meta property="og:image" content="http://yoursite.com/2020/09/01/Kubernetes%E7%BD%91%E7%BB%9C/FlannelVXLAN%E9%80%9A%E4%BF%A1.png">
+<meta property="og:image" content="http://yoursite.com/2020/09/01/Kubernetes%E7%BD%91%E7%BB%9C/calico-%E5%86%85%E9%83%A8%E6%9E%B6%E6%9E%84%E5%9B%BE.png">
+<meta property="article:published_time" content="2020-09-01T10:55:14.000Z">
+<meta property="article:modified_time" content="2020-09-01T11:09:24.611Z">
+<meta property="article:author" content="Zkchang">
+<meta property="article:tag" content="Kubernetes">
+<meta property="article:tag" content="容器">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://yoursite.com/2020/09/01/Kubernetes%E7%BD%91%E7%BB%9C/flannel%E6%9E%B6%E6%9E%84.png">
+
+<link rel="canonical" href="http://yoursite.com/2020/09/01/Kubernetes%E7%BD%91%E7%BB%9C/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-Hans'
+  };
+</script>
+
+  <title>Kubernetes网络 | Zkchang Blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+<link rel="alternate" href="/atom.xml" title="Zkchang Blog" type="application/atom+xml">
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">Zkchang Blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">zkchang</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+        <li class="menu-item menu-item-commonweal">
+
+    <a href="/404/" rel="section"><i class="fa fa-heartbeat fa-fw"></i>公益 404</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-Hans">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2020/09/01/Kubernetes%E7%BD%91%E7%BB%9C/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/t.jpg">
+      <meta itemprop="name" content="Zkchang">
+      <meta itemprop="description" content="DevOps">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Zkchang Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Kubernetes网络
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2020-09-01 18:55:14 / 修改时间：19:09:24" itemprop="dateCreated datePublished" datetime="2020-09-01T18:55:14+08:00">2020-09-01</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Kubernetes/" itemprop="url" rel="index"><span itemprop="name">Kubernetes</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>CNI(Conteinre Network Interface)<br>Kubernetes 网络插件-flannel<br>Kubernetes 网络插件-calico</p>
+<a id="more"></a>
+
+
+
+
+<h1 id="Kubernetes-网络"><a href="#Kubernetes-网络" class="headerlink" title="Kubernetes 网络"></a>Kubernetes 网络</h1><h2 id="一、CNI"><a href="#一、CNI" class="headerlink" title="一、CNI"></a>一、CNI</h2><p>CNI(Conteinre Network Interface) 是 google 和 CoreOS 主导制定的容器网络标准，它 本身并不是实现或者代码，可以理解成一个协议。协议连接了两个组件：容器管理系统和网络插件。它们之间通过 JSON 格式的文件进行通信，实现容器的网络功能。具体的事情都是插件来实现的，包括：创建容器网络空间（network namespace）、把网络接口（interface）放到对应的网络空间、给网络接口分配 IP 等等。</p>
+<p>Kubernetes使用的CNI插件而非CNM，CNM 对Docker 有非常强的依赖，无法作为通用的容器网络标准，而CNI对开发者的约束更少，更开放。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">Kubernetes使用CNI网络插件的工作流程：</span><br><span class="line"></span><br><span class="line">1. Kubernetes调用CRI创建pause 容器，生成对应的network namespace；</span><br><span class="line">2. 调用网络 driver；</span><br><span class="line">3. CNI driver根据配置调用具体的CNI插件；</span><br><span class="line">4. CNI 插件会给pause容器配置正确的网络， Pod中的其他容器都是用pause容器的网络栈。</span><br></pre></td></tr></table></figure>
+
+<p> 容器运行时（runtime）决定了容器应该加入哪个网络以及需要调用哪个插件。 然后插件将网络接口添加容器网络运行空间中（如，作为veth pair的一端）。接着它会在主机上进行相关配置，将veth的其他部分连接到网桥上。最后,CNI会通过调用单独的IPAM（IP地址管理）插件分配ip地址并设置路由。</p>
+<h2 id="二、Kubernetes-网络插件-flannel"><a href="#二、Kubernetes-网络插件-flannel" class="headerlink" title="二、Kubernetes 网络插件-flannel"></a>二、Kubernetes 网络插件-flannel</h2><p>容器夸节点通信访问，主要有以下几个方面的问题：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">1. 容器IP地址重复问题</span><br><span class="line">   Docker等容器工具只是使用Linux内核的Network namespace实现了网络隔离， 节点内的容器IP地址是在所属节点上自动分配的， 属于同一个网络。但在更大范围网络难免会出现网络IP地址重复问题。 flannel为了解决此问题，将网段和节点之间的关系存储在etcd 分布式k&#x2F;v存储中， 为每个节点分配一个网段，配置在docker或其他容器上。</span><br><span class="line">2. 容器IP地址路由问题</span><br><span class="line">   IP地址重复问题解决， 但不同节点上容器是如何通信的？还有虚拟网络中IP地址和MAC地址在物理网络中是不认识的，即使发送到物理网络中，也会因为无法路由而丢弃掉。</span><br><span class="line">flannel使用两种方式进行解决此问题：1. overlay (隧道网络)、2. 网络地址路由方法（如：Host-Gateway）</span><br><span class="line">   1. Overlay 隧道网络其实就是对网络中的数据包添加额外的包头封装</span><br><span class="line">      UDP封包： 封包和解包过程在用户空间中的flanneld进程进行的， 所以当数据进入主机后， 需要经历两次内核态到空间态的装换。</span><br><span class="line">      VXLAN封包： VXLAN是内置在linux内核的标准协议，它的封包要比UDP复杂的多，但是所有数据的封包和解包都在内核中完成。</span><br><span class="line">   2. 网络地址路由：flannel在Host-Gateway模式下，通过在各个节点上运行的agent(flanneld) 将容器网络的路由信息刷新至主机路由表上，此时主机就有整个容器网络的路由数据了， 通信效率和裸机直连相差无几。事实 flannel 的Host-Gateway模式性能要比Calico要好。</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-1-flannel-架构"><a href="#2-1-flannel-架构" class="headerlink" title="2.1 flannel 架构"></a>2.1 flannel 架构</h3><p><img src="flannel%E6%9E%B6%E6%9E%84.png" alt="flannel架构"></p>
+<p>在集群中内所有flannel节点共享一个大的容器地址段，如10.10.0.0/26  flanneld会从etcd中得知其他节点上的容器已经占用的网段信息，然后申请新的网段地址， 并把该IP网段地址和对应的主机记录在etcd中。</p>
+<h3 id="2-2-flannel-安装-kubernetes集群"><a href="#2-2-flannel-安装-kubernetes集群" class="headerlink" title="2.2 flannel 安装-kubernetes集群"></a>2.2 flannel 安装-kubernetes集群</h3><p>flannel 采用的是no server 架构，即不存在所谓的控制节点。</p>
+<p>flannel在架构方面分为管理面和数据面：<br>        管理面主要包含一个etcd，用于协调各个节点上的容器分配的网段。<br>        数据面在每个节点上运行一个flanneld进程。flanneld守护进程运行端口为 UDP 8472</p>
+<p>主要讲述flannel在Kuberentes集群中的安装</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br></pre></td><td class="code"><pre><span class="line">1. 下载和分发flanneld二进制文件</span><br><span class="line">	cd /opt/k8s/work &amp;&amp; wget https://github.com/coreos/flannel/releases/download/v0.11.0/flannel-v0.11.0-linux-amd64.tar.gz</span><br><span class="line">	tar xf flannel-v0.11.0-linux-amd64.tar.gz &amp;&amp; cp flanneld /opt/k8s/bin</span><br><span class="line">	将flanneld 文件和mk-docker-opts.sh分发至所有节点的/opt/k8s/bin目录下。</span><br><span class="line">2. 创建flannel证书和私钥</span><br><span class="line">	flannel从etcd集群获取存取网段的分配信息， 而etcd集群启动x509的双向证书认证</span><br><span class="line">     cd /opt/k8s/pki &amp;&amp; mkdir flannel &amp;&amp; cd flannel</span><br><span class="line">	创建证书签名请求：</span><br><span class="line"><span class="meta">	flannel]#</span><span class="bash"> cat flanneld-csr.json</span></span><br><span class="line">            &#123;</span><br><span class="line">              &quot;CN&quot;: &quot;flanneld&quot;,</span><br><span class="line">              &quot;hosts&quot;: [],</span><br><span class="line">              &quot;key&quot;: &#123;</span><br><span class="line">                &quot;algo&quot;: &quot;rsa&quot;,</span><br><span class="line">                &quot;size&quot;: 2048</span><br><span class="line">              &#125;,</span><br><span class="line">              &quot;names&quot;: [</span><br><span class="line">                &#123;</span><br><span class="line">                  &quot;C&quot;: &quot;CN&quot;,</span><br><span class="line">                  &quot;ST&quot;: &quot;BeiJing&quot;,</span><br><span class="line">                  &quot;L&quot;: &quot;BeiJing&quot;,</span><br><span class="line">                  &quot;O&quot;: &quot;k8s&quot;,</span><br><span class="line">                  &quot;OU&quot;: &quot;Ops&quot;</span><br><span class="line">                &#125;</span><br><span class="line">              ]</span><br><span class="line">            &#125;</span><br><span class="line">	生成证书和私钥</span><br><span class="line">        flannel]# cfssl gencert -ca=/opt/k8s/pki/CA/ca.pem \</span><br><span class="line">        &gt; -ca-key=/opt/k8s/pki/CA/ca-key.pem \</span><br><span class="line">        &gt; -config=/opt/k8s/pki/CA/ca-config.json \</span><br><span class="line">        &gt; -profile=kubernetes flanneld-csr.json | cfssljson -bare flanneld</span><br><span class="line">        flannel]# ls</span><br><span class="line">            flanneld.csr  flanneld-csr.json  flanneld-key.pem  flanneld.pem</span><br><span class="line">	将证书和私钥分发至所有节点</span><br><span class="line">3. 向etcd集群写入pod网段信息</span><br><span class="line">	只需执行一次</span><br><span class="line"><span class="meta">	#</span><span class="bash"> etcdctl --endpoints=<span class="string">&quot;https://192.168.0.201:2379,https://192.168.0.202:2379,https://192.168.0.203:2379&quot;</span> --ca-file=/etc/kubernetes/cert/CA/ca.pem --cert-file=/etc/kubernetes/cert/etcd/etcd.pem --key-file=/etc/kubernetes/cert/etcd/etcd-key.pem <span class="built_in">set</span> /etc/kubernetes/flannel_net/config  <span class="string">&#x27;&#123;&quot;Network&quot;:&quot;10.10.0.0/16&quot;,&quot;SubnetLen&quot;:21,&quot;Backend&quot;:&#123;&quot;Type&quot;:&quot;vxlan&quot;&#125;&#125;&#x27;</span></span></span><br><span class="line">	Network （字符串）：CIDR 格式的 IPv4 网络，用于整个 flannel 网络，这是唯一的必填字段.</span><br><span class="line">	SubnetLen（整数）：分配给每个主机的子网的大小。默认为 24（即 /24），除非 Network 被配置为比 /24 小，在这种情况下，它比 Network 小 1。</span><br><span class="line">	&quot;Backend （字典 dictionary）：要使用的后端类型以及该后端的特定配置。默认为 udp 后端, 在此使用的VXLAN模式&quot;</span><br><span class="line">	</span><br><span class="line">	</span><br><span class="line">4. 创建flanneld的systemd unit 文件</span><br><span class="line">        cd /opt/k8s/work</span><br><span class="line">        work]# cat flanneld.service </span><br><span class="line">            [Unit]</span><br><span class="line">            Description=Flanneld overlay address etcd agent</span><br><span class="line">            After=network.target</span><br><span class="line">            After=network-online.target</span><br><span class="line">            Wants=network-online.target</span><br><span class="line">            After=etcd.service</span><br><span class="line">            Before=docker.service</span><br><span class="line">            </span><br><span class="line">            [Service]</span><br><span class="line">            Type=notify</span><br><span class="line">            ExecStart=/opt/k8s/bin/flanneld \</span><br><span class="line">              -etcd-cafile=/etc/kubernetes/cert/CA/ca.pem \</span><br><span class="line">              -etcd-certfile=/etc/kubernetes/cert/flanneld/flanneld.pem \</span><br><span class="line">              -etcd-keyfile=/etc/kubernetes/cert/flanneld/flanneld-key.pem \</span><br><span class="line">              -etcd-endpoints=https://192.168.0.201:2379,https://192.168.0.202:2379,https://192.168.0.203:2379 \</span><br><span class="line">              -etcd-prefix=/etc/kubernetes/flannel_net \</span><br><span class="line">              -iface=ens33 \</span><br><span class="line">              -ip-masq</span><br><span class="line">            ExecStartPost=/opt/k8s/bin/mk-docker-opts.sh -k DOCKER_NETWORK_OPTIONS -d /run/flannel/docker</span><br><span class="line">            Restart=always</span><br><span class="line">            RestartSec=5</span><br><span class="line">            StartLimitInterval=0</span><br><span class="line">            </span><br><span class="line">            [Install]</span><br><span class="line">            WantedBy=multi-user.target</span><br><span class="line">            RequiredBy=docker.service</span><br><span class="line">	mk-docker-opts.sh 脚本将分配给 flanneld 的 Pod 子网网段信息写入 /run/flannel/docker 文件，后续 docker 启动时使用这个文件中的环境变量配置 docker0 网桥；</span><br><span class="line">    flanneld 使用系统缺省路由所在的接口与其它节点通信，对于有多个网络接口（如内网和公网）的节点，可以用 -iface 参数指定通信接口;</span><br><span class="line">    flanneld 运行时需要 root 权限；</span><br><span class="line">    -ip-masq: flanneld 为访问 Pod 网络外的流量设置 SNAT 规则，同时将传递给 Docker 的变量 --ip-masq（/run/flannel/docker 文件中）设置为 false，这样 Docker 将不再创建 SNAT 规则； Docker 的 --ip-masq 为 true 时，创建的 SNAT 规则比较“暴力”：将所有本节点 Pod 发起的、访问非 docker0 接口的请求做 SNAT，这样访问其他节点 Pod 的请求来源 IP 会被设置为 flannel.1 接口的 IP，导致目的 Pod 看不到真实的来源 Pod IP。 flanneld 创建的 SNAT 规则比较温和，只对访问非 Pod 网段的请求做 SNAT。</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>​    注意：flanneld要先于docker启动</p>
+<p>​    flanneld启动时主要做了一下动作：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">1. 从etcd中获取network的配置信息</span><br><span class="line">2. 划分subnet(子网), 并在etcd中注册</span><br><span class="line">3. 将子网信息记录到flannel维护的&#x2F;run&#x2F;flannel&#x2F;subnet.env文件中</span><br><span class="line">4. 将subnet.env转写成一个Docker的环境变量文件&#x2F;run&#x2F;flannel&#x2F;docker</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">[root@k8s-master01 ~]# cat /run/flannel/subnet.env </span><br><span class="line">FLANNEL_NETWORK=10.10.0.0/16</span><br><span class="line">FLANNEL_SUBNET=10.10.136.1/21</span><br><span class="line">FLANNEL_MTU=1450</span><br><span class="line">FLANNEL_IPMASQ=true</span><br><span class="line">[root@k8s-master01 ~]# cat /run/flannel/docker </span><br><span class="line">DOCKER_OPT_BIP=&quot;--bip=10.10.136.1/21&quot;</span><br><span class="line">DOCKER_OPT_IPMASQ=&quot;--ip-masq=false&quot;</span><br><span class="line">DOCKER_OPT_MTU=&quot;--mtu=1450&quot;</span><br><span class="line">DOCKER_NETWORK_OPTIONS=&quot; --bip=10.10.136.1/21 --ip-masq=false --mtu=1450&quot;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">flannle 启动后会运行一个flanneld守护进程， 并创建一个名为flannelxx的网卡（根据后端模式不同， 网卡名不同）如：      UDP：flannel0 是一个tun设备</span><br><span class="line">VXLAN： flannel.1</span><br><span class="line">flannel后端运行的模式为VXLAN，启动flannel后默认会创建名为flannel.1的VXLAN网卡，VTEP的MAC地址不是通过组播学习的，而是通过从API Server处watch Node发现的</span><br></pre></td></tr></table></figure>
+
+<p>可以通过一下命令查看VTEP 设备flannel.1的配置信息：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">[root@k8s-node01 cert]# ip -d link show flannel.1</span><br><span class="line">5: flannel.1: &lt;BROADCAST,MULTICAST,UP,LOWER_UP&gt; mtu 1450 qdisc noqueue state UNKNOWN mode DEFAULT group default </span><br><span class="line">    link/ether c6:43:2a:c4:e6:30 brd ff:ff:ff:ff:ff:ff promiscuity 0 </span><br><span class="line">    vxlan id 1 local 192.168.100.200 dev ens160 srcport 0 0 dstport 8472 nolearning ageing 300 noudpcsum noudp6zerocsumtx noudp6zerocsumrx addrgenmode eui64 numtxqueues 1 numrxqueues 1 gso_max_size 65536 gso_max_segs 65535 </span><br><span class="line"></span><br><span class="line">可以看到类型为vxlan, dstport 为8472</span><br><span class="line"><span class="meta">]#</span><span class="bash"> netstat -anlp | grep 8472</span></span><br><span class="line">udp        0      0 0.0.0.0:8472            0.0.0.0:*                           - </span><br><span class="line">最后一栏不是进程的ID和名称，而是一个“-” 这说明8472 这个UDP端口不是有用户态进程监听的， 而是flannel的VXLAN模式工作在 内核态。</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-3-flannel-UDP模式夸主机通信"><a href="#2-3-flannel-UDP模式夸主机通信" class="headerlink" title="2.3 flannel  UDP模式夸主机通信"></a>2.3 flannel  UDP模式夸主机通信</h3><p>flannel的UDP模式时， flanneld 进程会通过打来/dev/net/tun 的方式生成一个tun设备， tun设备是一种在linux提供一种内核网络到用户控件通信的机制， 及应用程序可以用过只写读写tun设备的方式，收发RAW IP包（无mac信息)。 flannel UPD模式跨主机通信流程图：</p>
+<p><img src="flannelUDP%E6%A8%A1%E5%BC%8F%E5%AE%B9%E5%99%A8%E9%80%9A%E4%BF%A1.png" alt="flannelUDP模式容器通信"></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line">环境：</span><br><span class="line">	node1: 192.168.100.200   pod1: 10.10.96.5</span><br><span class="line">	node2: 192.168.100.201   pod4: 10.10.168.2</span><br><span class="line">	pod1容器内的路由表：</span><br><span class="line">		# route -n</span><br><span class="line">            Kernel IP routing table</span><br><span class="line">            Destination     Gateway         Genmask         Flags Metric Ref    Use Iface</span><br><span class="line">            0.0.0.0         10.10.96.1      0.0.0.0         UG    0      0        0 eth0</span><br><span class="line">            10.10.96.0      0.0.0.0         255.255.248.0   U     0      0        0 eth0</span><br><span class="line">     node1 的路由表：</span><br><span class="line">     	# route -n</span><br><span class="line">            Kernel IP routing table</span><br><span class="line">            Destination     Gateway         Genmask         Flags Metric Ref    Use Iface</span><br><span class="line">            0.0.0.0         192.168.100.1   0.0.0.0         UG    100    0        0 ens160</span><br><span class="line">            10.10.0.0       0.0.0.0         255.255.248.0   UG    0      0        0 flannel0</span><br><span class="line">            10.10.96.0      0.0.0.0         255.255.248.0   U     0      0        0 docker0</span><br><span class="line">     node2路由表：</span><br><span class="line">     	10.10.168.0     0.0.0.0         255.255.248.0   U     0      0        0 docker0</span><br><span class="line">		192.168.100.0   0.0.0.0         255.255.255.0   U     100    0        0 ens160</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"> 流程：</span><br><span class="line">	pod1 内的容器访问 pod4内的容器为例：</span><br><span class="line">	1. 请求报文： src: 10.10.96.5 dest: 10.10.168.2 通过pod1容器路由表发现 数据报文通过 网关 10.10.96.1（docker0）出去</span><br><span class="line">	2. 到达docker0 的数据包的目的地址为：10.10.168.2， 数据包发送第二条路由规则（10.10.0.0），内核通过查看本机路由表知道应该将RAW IP 数据包发送给flannel0接口。</span><br><span class="line">	3. flannel0为tun设备， 接收到RAW IP数据包后，将此发送给flanneld进程，flanneld接收到数据包后通过查询etcd数据库，根据目的容器IP，确定目的主机IP，在原有的基础上，进行UDP封包：加上8个字节的UDP头，再加上20个字节的IP头。UDP包的格式为： 192.168.100.200:&#123;随机端口&#125; --&gt; 192.168.100.201:8285。</span><br><span class="line">	4. flanneld进程将封装好的数据包根据路由发往ens160网卡设备。</span><br><span class="line">	5. 网络数据包经过node主机网络从node1 发送到node2 上。</span><br><span class="line">	6. 主机node2收到UDP数据包后，Linux内核通过UDP端口号8285将数据包交个node2上的flanneld进程。</span><br><span class="line">	7. flanneld进程将数据包解包，得到RAW IP包： src: 10.10.96.5 dest: 10.10.168.2。</span><br><span class="line">	8. flannel0 设备根据目标IP：10.10.168.2,匹配本地主机的路由表，将数据包发送docker0 设备。</span><br><span class="line">	9. docker0 最终将报文提交给pod4中的容器进行处理， 处理完原路径发送应答报文。</span><br></pre></td></tr></table></figure>
+
+
+
+<h3 id="2-4-flannel-VXLAN模式跨主机通信"><a href="#2-4-flannel-VXLAN模式跨主机通信" class="headerlink" title="2.4 flannel VXLAN模式跨主机通信"></a>2.4 flannel VXLAN模式跨主机通信</h3><p>​    VXLAN： Vritual Extensible LAN, 是一种虚拟化隧道通信技术，不同于其他隧道协议， VXLAN是一个一对多的网络， 并不仅是一对一的隧道协议。一个VXLAN设备能通过像网桥一样的学习方式，学习到其他对端的IP地址，也可以直接配置静态转发表。</p>
+<h4 id="2-4-1-VXLAN-相关概念："><a href="#2-4-1-VXLAN-相关概念：" class="headerlink" title="2.4.1 VXLAN 相关概念："></a>2.4.1 VXLAN 相关概念：</h4><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">VTEP（VXLAN Tunnel Endpoints）VXLAN网络的边缘设备， 用来进行VXLAN报文处理（封包解包）。如flannel.1 </span><br><span class="line">VNI (VXLAN Network Identifier): VNI是每个VXLAN的标识，是一个24位证书。 </span><br></pre></td></tr></table></figure>
+
+<p>VXLAN 数据包格式：</p>
+<p><img src="VXLAN%E5%B0%81%E5%8C%85%E6%A0%BC%E5%BC%8F.png" alt="VXLAN封包格式"></p>
+<p>​    从VXLAN的包格式就可以看到原本的二层以太网帧被放在VXLAN包头里进行封装，VXLAN实际实现的是一个二层网络的隧道，通过VXLAN让处于同一个VXLAN网络（VNI相同则为同一个VXLAN网络）当中的机器看似处在同一个二层网络当中（逻辑上处于同一个二层网络），而网络包转发的方式也类似二层网络当中的交换机（这样虽然不是很准确，但更便于理解）</p>
+<p>当采用VXLAN模式时，flanneld在启动时会通过Netlink机制与Linux内核通信，建立一个VTEP（Virtual Tunnel Access End Point）设备flannel.1 （命名规则为flannel.[VNI]，VNI默认为1），类似于交换机当中的一个网口。如上文所讲，可以通过 ip -d link show flannel.1 进行查看配置信息。</p>
+<h4 id="2-4-2-VXLAN-backend-工作原理："><a href="#2-4-2-VXLAN-backend-工作原理：" class="headerlink" title="2.4.2 VXLAN backend 工作原理："></a>2.4.2 VXLAN backend 工作原理：</h4><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br></pre></td><td class="code"><pre><span class="line">当flanneld启动时将储能建VTEP设备，默认为flannel.1 并将VTEP设备的相关信息报道至etcd中， 当flannel网络中有新的节点接入集群并向etcd注册时，各节点上的flanneld从etcd得到通知，并执行以下流程：</span><br><span class="line">1、在节点中创建一条节点所属网段的路由表，主要能让pod中的流量路由到flannel.1接口；</span><br><span class="line">	可查看接口flannel.1接口的路由：</span><br><span class="line">        [root@k8s-node01 ~]# route -n</span><br><span class="line">            Kernel IP routing table</span><br><span class="line">            Destination     Gateway         Genmask         Flags Metric Ref    Use Iface</span><br><span class="line">            0.0.0.0         192.168.100.1   0.0.0.0         UG    100    0        0 ens160</span><br><span class="line">            10.10.32.0      10.10.32.0      255.255.248.0   UG    0      0        0 flannel.1</span><br><span class="line">            10.10.96.0      0.0.0.0         255.255.248.0   U     0      0        0 docker0</span><br><span class="line">            10.10.136.0     10.10.136.0     255.255.248.0   UG    0      0        0 flannel.1</span><br><span class="line">            10.10.160.0     10.10.160.0     255.255.248.0   UG    0      0        0 flannel.1</span><br><span class="line">            10.10.168.0     10.10.168.0     255.255.248.0   UG    0      0        0 flannel.1</span><br><span class="line">            192.168.100.0   0.0.0.0         255.255.255.0   U     100    0        0 ens160</span><br><span class="line">            192.168.122.0   0.0.0.0         255.255.255.0   U     0      0        0 virbr0</span><br><span class="line">        [root@k8s-node01 ~]# ip route show dev flannel.1</span><br><span class="line">            10.10.32.0&#x2F;21 via 10.10.32.0 onlink </span><br><span class="line">            10.10.136.0&#x2F;21 via 10.10.136.0 onlink </span><br><span class="line">            10.10.160.0&#x2F;21 via 10.10.160.0 onlink 	</span><br><span class="line">            10.10.168.0&#x2F;21 via 10.10.168.0 onlink</span><br><span class="line">  </span><br><span class="line">2、在节点当中添加一条节点的IP以及VTEP设备的静态ARP缓存；</span><br><span class="line">	[root@k8s-node01 ~]# ip neig show dev flannel.1</span><br><span class="line">        10.10.160.0 lladdr 46:c0:a5:dd:f3:ff PERMANENT</span><br><span class="line">        10.10.32.0 lladdr 86:f7:73:ff:01:70 PERMANENT</span><br><span class="line">        10.10.136.0 lladdr 0a:51:48:bf:81:e2 PERMANENT</span><br><span class="line">        10.10.168.0 lladdr 36:a3:c4:f0:a5:47 PERMANENT</span><br><span class="line">    [root@k8s-node01 ~]# arp -n -i flannel.1</span><br><span class="line">        Address                  HWtype  HWaddress           Flags Mask            Iface</span><br><span class="line">        10.10.160.0              ether   46:c0:a5:dd:f3:ff   CM                    flannel.1</span><br><span class="line">        10.10.32.0               ether   86:f7:73:ff:01:70   CM                    flannel.1</span><br><span class="line">        10.10.136.0              ether   0a:51:48:bf:81:e2   CM                    flannel.1</span><br><span class="line">        10.10.168.0              ether   36:a3:c4:f0:a5:47   CM                    flannel.1</span><br><span class="line">        </span><br><span class="line">    其中mac地址都为其他节点上VTEP设备 flannel.1的mac地址；</span><br><span class="line">    </span><br><span class="line">3、在节点当中添加一条节点的路由转发表；</span><br><span class="line">	可通过bridge命令进行查看节点上的VXLAN转发表（FDB Entry）.</span><br><span class="line">    	[root@k8s-node01 ~]# bridge fdb show dev flannel.1</span><br><span class="line">            86:f7:73:ff:01:70 dst 192.168.100.198 self permanent</span><br><span class="line">            36:a3:c4:f0:a5:47 dst 192.168.100.201 self permanent</span><br><span class="line">            46:c0:a5:dd:f3:ff dst 192.168.100.199 self permanent</span><br><span class="line">            0a:51:48:bf:81:e2 dst 192.168.100.197 self permanent</span><br><span class="line">	MAC 地址为其他节点上VTEP设备的mac地址，即flannel.1的mac地址</span><br><span class="line">	IP 地址为其他节点对外的IP地址（可以通过flanneld启动参数--iface&#x3D;ens160 进行配置）</span><br></pre></td></tr></table></figure>
+
+<h4 id="2-4-3-VXLAN模式数据通信流程"><a href="#2-4-3-VXLAN模式数据通信流程" class="headerlink" title="2.4.3 VXLAN模式数据通信流程"></a>2.4.3 VXLAN模式数据通信流程</h4><p>​    node1: 192.168.100.200   pod1: 10.10.96.5<br>​    node2: 192.168.100.201   pod4: 10.10.168.2</p>
+<p>流程图</p>
+<p><img src="FlannelVXLAN%E9%80%9A%E4%BF%A1.png" alt="Flannel VXLAN通信"></p>
+<p>容器跨节点网络通信实现流程为：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line">1.同UDP Backend模式，pod1内的容器当中的IP包通过pod1内的容器的路由表被发送到docker0</span><br><span class="line">    / # route -n</span><br><span class="line">    Kernel IP routing table</span><br><span class="line">    Destination     Gateway         Genmask         Flags Metric Ref    Use Iface</span><br><span class="line">    0.0.0.0         10.10.96.1      0.0.0.0         UG    0      0        0 eth0</span><br><span class="line">    10.10.96.0      0.0.0.0         255.255.248.0   U     0      0        0 eth0</span><br><span class="line">2.到达docker0当中的IP包通过匹配node1当中的路由表发现通往10.10.168.2的IP包应该交给flannel.1接口</span><br><span class="line">	[root@k8s-node01 ~]# route -n</span><br><span class="line">    Kernel IP routing table</span><br><span class="line">    Destination     Gateway         Genmask         Flags Metric Ref    Use Iface</span><br><span class="line">    0.0.0.0         192.168.100.1   0.0.0.0         UG    100    0        0 ens160</span><br><span class="line">    10.10.96.0      0.0.0.0         255.255.248.0   U     0      0        0 docker0</span><br><span class="line">    10.10.168.0     10.10.168.0     255.255.248.0   UG    0      0        0 flannel.1</span><br><span class="line">    192.168.100.0   0.0.0.0         255.255.255.0   U     100    0        0 ens160</span><br><span class="line">3.flannel.1作为一个VTEP设备，收到报文后将按照VTEP的配置进行封包，首先通过etcd得知10.10.168.2属于节点node2，并得到节点node2的IP，通过node1当中的转发表得到节点node2对应的VTEP的MAC，根据flannel.1设备创建时的设置的参数（VNI、local IP、Port）进行VXLAN封包</span><br><span class="line">	[root@k8s-node01 ~]# bridge fdb show dev flannel.1</span><br><span class="line">    36:a3:c4:f0:a5:47 dst 192.168.100.201 self permanent</span><br><span class="line"></span><br><span class="line">4.通过node1跟node2之间的网络连接，VXLAN包到达node2的ens160接口</span><br><span class="line"></span><br><span class="line">5.通过端口8472，VXLAN包被转发给VTEP设备flannel.1进行解包</span><br><span class="line"></span><br><span class="line">6.解封装后的IP包匹配node2当中的路由表（10.10.168.0），内核将IP包转发给docker0</span><br><span class="line">	[root@k8s-node02 ~]# route -n</span><br><span class="line">    Kernel IP routing table</span><br><span class="line">    Destination     Gateway         Genmask         Flags Metric Ref    Use Iface</span><br><span class="line">    0.0.0.0         192.168.100.1   0.0.0.0         UG    100    0        0 ens160</span><br><span class="line">    10.10.96.0      10.10.96.0      255.255.248.0   UG    0      0        0 flannel.1</span><br><span class="line">    10.10.168.0     0.0.0.0         255.255.248.0   U     0      0        0 docker0</span><br><span class="line">    192.168.100.0   0.0.0.0         255.255.255.0   U     100    0        0 ens160</span><br><span class="line">7.docker0将IP包转发给连接在docer0上的pod2内的容器。</span><br></pre></td></tr></table></figure>
+
+
+
+<h2 id="三、Kubernetes-网络插件-calico"><a href="#三、Kubernetes-网络插件-calico" class="headerlink" title="三、Kubernetes 网络插件-calico"></a>三、Kubernetes 网络插件-calico</h2><h3 id="3-1-Calico介绍"><a href="#3-1-Calico介绍" class="headerlink" title="3.1 Calico介绍"></a>3.1 Calico介绍</h3><p>Calico是一个基于BGP纯三层网络模型的容器网络解决方案。</p>
+<p>三层网络通信表示每个容器都通过IP地址直接通信，中间经过路由转发找到对方。在此模式下， 容器所在的宿主机节点扮演了虚拟路由器（VRoute)的功能，而这些Vroute以BGP路由协议，能够知道整个集群的路由信息。</p>
+<p>Calico 也支持网络策略功能。 Calico基于iptables实现Kubernetes的网络策略，通过在各个节点上应用ACL（访问控制列表）提供工作负载的多组户隔离， 安全组和其他可达性的限制功能等。</p>
+<p>Calicn还可以和网格服务Istio集成，以便在服务网格层和网络基础架构层中解释和实现集群内工作负责的网络策略。</p>
+<p>Calico 名词解释</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">Endpoint: 接入Calico网络中的网卡（IP）;</span><br><span class="line">AS：网络自制系统， 通过BGP与其他AS网络交换路由信息；</span><br><span class="line">iBGP：AS内部的BGP Speaker， 与同一个AS内部的iBGP，eBGP交换路由信息；</span><br><span class="line">eBGP：AS边界的BGP Speaker，与同一个AS内部的iBGP，其他AS的eBGP交换路由信息；</span><br><span class="line">workloadEndpoint：虚拟机和容器断点，一般指它们的IP地址；</span><br><span class="line">hostEndpoint：宿主机端点，一般指它们的IP地址。</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-2-Calico-内部架构"><a href="#3-2-Calico-内部架构" class="headerlink" title="3.2 Calico 内部架构"></a>3.2 Calico 内部架构</h3><p><img src="calico-%E5%86%85%E9%83%A8%E6%9E%B6%E6%9E%84%E5%9B%BE.png" alt="calico-内部架构图"></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">1. Felix 是一个守护进程，作为client运行在托管容器和虚拟机的Calico节点上。功能有以下几点：</span><br><span class="line">	a. 管理网络接口：Felix将有关接口的一些信息编程到内核中，使内核能够正确处理该endpoint 发出的流量。felix确保主机正确响应来自每个工作负载的ARP请求，并将其管理的网卡启用IP Forward。</span><br><span class="line">	b.编写路由： Felix负责将到其主机上的Endpoint的路由信息编写到Linux内核FIB（转发信息库）中， 这可确保那些发往目标主机的EndPoint的数据包被正确的转发</span><br><span class="line">	c.编写ACL：Felix负责编写ACL到内核中， 即iptables规则。</span><br><span class="line">    d.Felix负责提供有关网络的健康状态的数据。它将把配置其主机时发生错误和问题， 会将数据写入etcd, 其他节点也可见。</span><br><span class="line">2. BGP Client </span><br><span class="line">	Calico在每个运行的Felix服务节点上都部署一个BGP CLient, 作用就是读取Felix编写到内核的路由信息，由BGP 客户端对这些路由信息进行分发至集群中的其他工作节点。</span><br><span class="line">3. BGP Route Reflector （BIRD）</span><br><span class="line">	BGP 可能在较大规模部署时成为瓶颈。它要求每个BGP客户端连接到网络拓扑中的每个其他BGP客户端， 随着集群增大， 一下设备的路由表甚至会被撑满。</span><br><span class="line">	在大规模集群环境下建议使用BIRD，路由发射器。它充当BGP客户端连接的中心点， 从而避免互联网中每个BGP客户端进行通信。BGP Route Reflect主要负责集中式的路由信息分发，当Calico BGP 客户端将路由通告到RouteReflect时， Route Reflector会将这些路由通告给集群其他节点。</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-3-在calico网络的BGP模式下，数据包走向"><a href="#3-3-在calico网络的BGP模式下，数据包走向" class="headerlink" title="3.3  在calico网络的BGP模式下，数据包走向"></a>3.3  在calico网络的BGP模式下，数据包走向</h3><p><strong>pod 1 ping pod2</strong></p>
+<p>1.当pod1 10.10.58.197  ping  pod2：ping 10.10.85.193 时，发现不在同一个网段，就会查找自己的路由表：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"><span class="comment"># pod1 网络</span></span></span><br><span class="line"><span class="meta">/]#</span><span class="bash"> ip a</span></span><br><span class="line">1: lo: &lt;LOOPBACK,UP,LOWER_UP&gt; mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000</span><br><span class="line">    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00</span><br><span class="line">    inet 127.0.0.1/8 scope host lo</span><br><span class="line">       valid_lft forever preferred_lft forever</span><br><span class="line">3: eth0@if11: &lt;BROADCAST,MULTICAST,UP,LOWER_UP&gt; mtu 1440 qdisc noqueue state UP group default</span><br><span class="line">    link/ether 7a:96:cb:7d:40:eb brd ff:ff:ff:ff:ff:ff link-netnsid 0</span><br><span class="line">    inet 10.10.58.197/32 scope global eth0</span><br><span class="line">       valid_lft forever preferred_lft forever</span><br><span class="line"><span class="meta">]#</span><span class="bash"> ip route</span></span><br><span class="line">default via 169.254.1.1 dev eth0</span><br><span class="line">169.254.1.1 dev eth0 scope link</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>2.知道下一跳之后， 开始查询下一跳的169.254.1.1 MAC地址。</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"><span class="comment"># Mac地址</span></span></span><br><span class="line">[root@test /]# ip neigh</span><br><span class="line">169.254.1.1 dev eth0 lladdr ee:ee:ee:ee:ee:ee STALE</span><br><span class="line">可以看出mac地址为 ee:ee:ee:ee:ee:ee </span><br></pre></td></tr></table></figure>
+
+<p>3.pod1 eth0是veth pair的一端，其另外一段是主机以 calixxx 命名的网卡，通过ethtool -S eth0 查看：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"><span class="comment"># 网卡eth0 对端网卡的index</span></span></span><br><span class="line">[root@test /]# ethtool -S eth0</span><br><span class="line">NIC statistics:</span><br><span class="line">     peer_ifindex: 11</span><br><span class="line">  </span><br><span class="line">在宿主机上通过ip a命令可以看出11 序号的宿主机网卡：</span><br><span class="line">[root@k8s-node02 ~]# ip a</span><br><span class="line">11: cali1037a54e65e@if3: &lt;BROADCAST,MULTICAST,UP,LOWER_UP&gt; mtu 1440 qdisc noqueue state UP group default</span><br><span class="line">    link/ether ee:ee:ee:ee:ee:ee brd ff:ff:ff:ff:ff:ff link-netnsid 2</span><br><span class="line"></span><br><span class="line">calixxx网卡在收到arp 请求后直接进行了应答， 应答报文的mac地址是自己的mac地址。 </span><br><span class="line">容器的后续报文的IP地址还是目的容器， 但是mac地址就变成了主机上该网卡的mac地址。也就是后续报文都是会送给此pod的宿主机， 然后宿主机根据IP地址在进行转发。</span><br><span class="line">其实是使用Calico的 Arp Proxy和修改容器路由表的机制实现的。</span><br><span class="line">在宿主机上通过以下命令查看是否打开ARP Proxy：</span><br><span class="line">[root@k8s-node02 ~]# cat /proc/sys/net/ipv4/conf/cali1037a54e65e/proxy_arp</span><br><span class="line">1</span><br></pre></td></tr></table></figure>
+
+<p>4.宿主机上的calixxxx收到报文后， 根据宿主机的路由信息进行转发：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"><span class="comment"># 宿主机路由：</span></span></span><br><span class="line">    [root@k8s-node02 ~]# ip route</span><br><span class="line">    default via 192.168.100.1 dev ens160</span><br><span class="line">    blackhole 10.10.58.192/26 proto bird</span><br><span class="line">    10.10.58.194 dev calia74d9d6d138 scope link</span><br><span class="line">    10.10.58.195 dev cali12d4a061371 scope link</span><br><span class="line">    10.10.58.197 dev cali1037a54e65e scope link</span><br><span class="line">    10.10.85.192/26 via 192.168.100.200 dev ens160 proto bird</span><br><span class="line">    169.254.0.0/16 dev ens160 scope link metric 1002</span><br><span class="line">    172.17.0.0/16 dev docker0 proto kernel scope link src 172.17.0.1</span><br><span class="line">    192.168.100.0/24 dev ens160 proto kernel scope link src 192.168.100.201</span><br><span class="line">    192.168.122.0/24 dev virbr0 proto kernel scope link src 192.168.122.1</span><br><span class="line"></span><br><span class="line">有此路由表可以看到： 目标地址为10.10.85.193 时会匹配：10.10.85.192/26 via 192.168.100.200 dev ens160 proto bird此条路由， 把192.168.100.200 作为下一跳 通过ens160 网卡江报文发出。</span><br></pre></td></tr></table></figure>
+
+<p>5.到达100.200 上后， 然后根据路由表信息：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"><span class="comment"># node01  192.168.100.200路由信息：</span></span></span><br><span class="line">[root@k8s-node01 ~]# ip route</span><br><span class="line">default via 192.168.100.1 dev ens160 proto static metric 100</span><br><span class="line">10.10.58.192/26 via 192.168.100.201 dev ens160 proto bird</span><br><span class="line">10.10.85.192 dev calib1d6745cd3b scope link</span><br><span class="line">blackhole 10.10.85.192/26 proto bird</span><br><span class="line">10.10.85.193 dev cali52390d724f7 scope link</span><br><span class="line">10.10.85.194 dev cali4eda488231b scope link</span><br><span class="line">172.17.0.0/16 dev docker0 proto kernel scope link src 172.17.0.1</span><br><span class="line">192.168.100.0/24 dev ens160 proto kernel scope link src 192.168.100.200 metric 100</span><br><span class="line">192.168.122.0/24 dev virbr0 proto kernel scope link src 192.168.122.1</span><br><span class="line"></span><br><span class="line">根据：此路由信息可以知道，要是目标地址为10.10.85.193 则会匹配10.10.85.193 dev cali52390d724f7 scope link 此条路由， 报文会发送给cali52390d724f7 这个veth pair设备， 然后发送给另一端的目标容器。</span><br></pre></td></tr></table></figure>
+
+
+
+    </div>
+
+    
+    
+    
+        <div class="reward-container">
+  <div></div>
+  <button onclick="var qr = document.getElementById('qr'); qr.style.display = (qr.style.display === 'none') ? 'block' : 'none';">
+    打赏
+  </button>
+  <div id="qr" style="display: none;">
+      
+      <div style="display: inline-block;">
+        <img src="/images/w.png" alt="Zkchang 微信支付">
+        <p>微信支付</p>
+      </div>
+
+  </div>
+</div>
+
+        
+
+  <div class="followme">
+    <p>欢迎关注我的其它发布渠道</p>
+
+    <div class="social-list">
+
+        <div class="social-item">
+          <a target="_blank" class="social-link" href="/atom.xml">
+            <span class="icon">
+              <i class="fa fa-rss"></i>
+            </span>
+
+            <span class="label">RSS</span>
+          </a>
+        </div>
+    </div>
+  </div>
+
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Kubernetes/" rel="tag"># Kubernetes</a>
+              <a href="/tags/%E5%AE%B9%E5%99%A8/" rel="tag"># 容器</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item"></div>
+      <div class="post-nav-item">
+    <a href="/2020/09/01/hello-world/" rel="next" title="Hexo Command">
+      Hexo Command <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Kubernetes-%E7%BD%91%E7%BB%9C"><span class="nav-number">1.</span> <span class="nav-text">Kubernetes 网络</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81CNI"><span class="nav-number">1.1.</span> <span class="nav-text">一、CNI</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81Kubernetes-%E7%BD%91%E7%BB%9C%E6%8F%92%E4%BB%B6-flannel"><span class="nav-number">1.2.</span> <span class="nav-text">二、Kubernetes 网络插件-flannel</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-flannel-%E6%9E%B6%E6%9E%84"><span class="nav-number">1.2.1.</span> <span class="nav-text">2.1 flannel 架构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-flannel-%E5%AE%89%E8%A3%85-kubernetes%E9%9B%86%E7%BE%A4"><span class="nav-number">1.2.2.</span> <span class="nav-text">2.2 flannel 安装-kubernetes集群</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-flannel-UDP%E6%A8%A1%E5%BC%8F%E5%A4%B8%E4%B8%BB%E6%9C%BA%E9%80%9A%E4%BF%A1"><span class="nav-number">1.2.3.</span> <span class="nav-text">2.3 flannel  UDP模式夸主机通信</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-4-flannel-VXLAN%E6%A8%A1%E5%BC%8F%E8%B7%A8%E4%B8%BB%E6%9C%BA%E9%80%9A%E4%BF%A1"><span class="nav-number">1.2.4.</span> <span class="nav-text">2.4 flannel VXLAN模式跨主机通信</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#2-4-1-VXLAN-%E7%9B%B8%E5%85%B3%E6%A6%82%E5%BF%B5%EF%BC%9A"><span class="nav-number">1.2.4.1.</span> <span class="nav-text">2.4.1 VXLAN 相关概念：</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#2-4-2-VXLAN-backend-%E5%B7%A5%E4%BD%9C%E5%8E%9F%E7%90%86%EF%BC%9A"><span class="nav-number">1.2.4.2.</span> <span class="nav-text">2.4.2 VXLAN backend 工作原理：</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#2-4-3-VXLAN%E6%A8%A1%E5%BC%8F%E6%95%B0%E6%8D%AE%E9%80%9A%E4%BF%A1%E6%B5%81%E7%A8%8B"><span class="nav-number">1.2.4.3.</span> <span class="nav-text">2.4.3 VXLAN模式数据通信流程</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81Kubernetes-%E7%BD%91%E7%BB%9C%E6%8F%92%E4%BB%B6-calico"><span class="nav-number">1.3.</span> <span class="nav-text">三、Kubernetes 网络插件-calico</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-Calico%E4%BB%8B%E7%BB%8D"><span class="nav-number">1.3.1.</span> <span class="nav-text">3.1 Calico介绍</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-Calico-%E5%86%85%E9%83%A8%E6%9E%B6%E6%9E%84"><span class="nav-number">1.3.2.</span> <span class="nav-text">3.2 Calico 内部架构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-%E5%9C%A8calico%E7%BD%91%E7%BB%9C%E7%9A%84BGP%E6%A8%A1%E5%BC%8F%E4%B8%8B%EF%BC%8C%E6%95%B0%E6%8D%AE%E5%8C%85%E8%B5%B0%E5%90%91"><span class="nav-number">1.3.3.</span> <span class="nav-text">3.3  在calico网络的BGP模式下，数据包走向</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Zkchang"
+      src="/images/t.jpg">
+  <p class="site-author-name" itemprop="name">Zkchang</p>
+  <div class="site-description" itemprop="description">DevOps</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">2</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">2</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">3</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://github.com/zkchang" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;zkchang" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+  </div>
+
+
+  <div class="links-of-blogroll motion-element">
+    <div class="links-of-blogroll-title"><i class="fa fa-link fa-fw"></i>
+      田飞雨
+    </div>
+    <ul class="links-of-blogroll-list">
+        <li class="links-of-blogroll-item">
+          <a href="https://blog.tianfeiyu.com/" title="https:&#x2F;&#x2F;blog.tianfeiyu.com&#x2F;" rel="noopener" target="_blank">Title</a>
+        </li>
+    </ul>
+  </div>
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Zkchang</span>
+<!--
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://pisces.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a> 强力驱动
+  </div>
+-->
+<div>
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+<span id="busuanzi_container_site_pv" style='display:none'>
+    本站总访问量 <span id="busuanzi_value_site_pv"></span> 次
+    <span class="post-meta-divider">|</span>
+</span>
+<span id="busuanzi_container_site_uv" style='display:none'>
+    有<span id="busuanzi_value_site_uv"></span>人看过
+</span>
+</div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>
